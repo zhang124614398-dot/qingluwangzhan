@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我们的甜蜜回忆 💖</title>
+  <!-- 引入样式库 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- 自定义配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            love: '#ff8fab', // 情侣主色调
+            loveDark: '#ff5e88',
+            loveLight: '#ffd6e0'
+          },
+          fontFamily: {
+            cute: ['Microsoft YaHei', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .carousel-shadow {
+        box-shadow: 0 0 30px rgba(255, 143, 171, 0.5);
+      }
+      .danmaku-item {
+        position: absolute;
+        white-space: nowrap;
+        color: #fff;
+        font-size: 18px;
+        font-weight: bold;
+        text-shadow: 1px 1px 2px #000;
+        pointer-events: none;
+        animation: danmaku 8s linear;
+      }
+      @keyframes danmaku {
+        from { right: -100%; }
+        to { right: 100%; }
+      }
+      .fade {
+        animation: fade 1s ease-in-out;
+      }
+      @keyframes fade {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+    }
+  </style>
+</head>
+<body class="bg-loveLight min-h-screen font-cute overflow-hidden">
+  <!-- 弹幕容器 -->
+  <div id="danmakuContainer" class="fixed top-0 left-0 w-full h-full pointer-events-none z-20"></div>
+
+  <!-- 顶部控制栏 -->
+  <div class="fixed top-0 left-0 w-full bg-white/80 backdrop-blur-md p-3 flex items-center gap-3 z-30 shadow-md">
+    <h1 class="text-loveDark text-xl md:text-2xl font-bold flex items-center gap-2">
+      <i class="fa-solid fa-heart"></i> 我们的甜蜜回忆
+    </h1>
+    
+    <!-- 上传照片 -->
+    <label class="bg-love hover:bg-loveDark text-white px-3 py-1 rounded-full cursor-pointer transition">
+      <i class="fa-solid fa-upload"></i> 上传照片
+      <input type="file" id="imageUpload" accept="image/*" multiple class="hidden">
+    </label>
+    
+    <!-- 播放控制 -->
+    <button id="playBtn" class="bg-love hover:bg-loveDark text-white px-3 py-1 rounded-full transition">
+      <i class="fa-solid fa-play"></i> 自动播放
+    </button>
+    
+    <!-- 弹幕输入 -->
+    <div class="flex-1 flex gap-2">
+      <input id="danmakuInput" placeholder="写下你的甜蜜留言~" 
+             class="flex-1 px-3 py-1 rounded-full border-2 border-love outline-none focus:border-loveDark">
+      <button id="sendDanmaku" class="bg-love hover:bg-loveDark text-white px-3 py-1 rounded-full transition">
+        发送弹幕
+      </button>
+    </div>
+  </div>
+
+  <!-- 轮播主区域 -->
+  <div class="w-screen h-screen flex items-center justify-center p-5 mt-16">
+    <div id="carousel" class="w-full max-w-4xl h-[70vh] md:h-[80vh] bg-white rounded-2xl carousel-shadow overflow-hidden relative">
+      <img id="carouselImg" src="https://picsum.photos/1200/800" class="w-full h-full object-contain fade">
+      <div class="absolute bottom-0 left-0 w-full bg-black/30 text-white p-2 text-center">
+        共 <span id="imgCount">0</span> 张甜蜜照片
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部相册预览 -->
+  <div class="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md p-2 flex gap-2 overflow-x-auto z-30">
+    <div id="previewContainer" class="flex gap-2 px-2">
+      <!-- 预览图自动生成 -->
+    </div>
+  </div>
+
+<script>
+  // ============== 核心数据存储 ==============
+  // 本地存储：照片(Base64) + 弹幕记录
+  let imageList = JSON.parse(localStorage.getItem('coupleImages')) || [];
+  let danmakuList = JSON.parse(localStorage.getItem('coupleDanmaku')) || [];
+  let currentIndex = 0;
+  let autoplayTimer = null;
+  let isPlaying = false;
+
+  // DOM元素
+  const carouselImg = document.getElementById('carouselImg');
+  const previewContainer = document.getElementById('previewContainer');
+  const imgCount = document.getElementById('imgCount');
+  const imageUpload = document.getElementById('imageUpload');
+  const playBtn = document.getElementById('playBtn');
+  const danmakuInput = document.getElementById('danmakuInput');
+  const sendDanmaku = document.getElementById('sendDanmaku');
+  const danmakuContainer = document.getElementById('danmakuContainer');
+
+  // ============== 照片上传功能 ==============
+  imageUpload.addEventListener('change', (e) => {
+    const files = e.target.files;
+    if (!files.length) return;
+
+    for (let file of files) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        // 保存Base64图片
+        imageList.push(event.target.result);
+        localStorage.setItem('coupleImages', JSON.stringify(imageList));
+        renderPreview();
+        updateCount();
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // ============== 预览图渲染 ==============
+  function renderPreview() {
+    previewContainer.innerHTML = '';
+    imageList.forEach((img, index) => {
+      const imgDom = document.createElement('img');
+      imgDom.src = img;
+      imgDom.className = `w-16 h-16 object-cover rounded-lg cursor-pointer border-2 ${index === currentIndex ? 'border-loveDark' : 'border-transparent'} hover:border-love transition`;
+      imgDom.onclick = () => {
+        currentIndex = index;
+        showImage();
+      };
+      previewContainer.appendChild(imgDom);
+    });
+    updateCount();
+  }
+
+  // ============== 轮播显示 ==============
+  function showImage() {
+    if (imageList.length === 0) {
+      carouselImg.src = 'https://picsum.photos/1200/800';
+      return;
+    }
+    carouselImg.src = imageList[currentIndex];
+    renderPreview();
+  }
+
+  // 下一张图片
+  function nextImage() {
+    if (imageList.length === 0) return;
+    currentIndex = (currentIndex + 1) % imageList.length;
+    showImage();
+  }
+
+  // ============== 自动播放 ==============
+  function togglePlay() {
+    isPlaying = !isPlaying;
+    if (isPlaying) {
+      playBtn.innerHTML = '<i class="fa-solid fa-pause"></i> 暂停播放';
+      autoplayTimer = setInterval(nextImage, 3000); // 3秒切换一张
+    } else {
+      playBtn.innerHTML = '<i class="fa-solid fa-play"></i> 自动播放';
+      clearInterval(autoplayTimer);
+    }
+  }
+  playBtn.addEventListener('click', togglePlay);
+
+  // ============== 弹幕功能 ==============
+  // 发送弹幕
+  function sendDanmakuText() {
+    const text = danmakuInput.value.trim();
+    if (!text) return;
+    // 保存弹幕
+    danmakuList.push(text);
+    localStorage.setItem('coupleDanmaku', JSON.stringify(danmakuList));
+    // 显示弹幕
+    createDanmaku(text);
+    danmakuInput.value = '';
+  }
+  sendDanmaku.addEventListener('click', sendDanmakuText);
+  danmakuInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendDanmakuText());
+
+  // 创建弹幕元素
+  function createDanmaku(text) {
+    const danmaku = document.createElement('div');
+    danmaku.className = 'danmaku-item';
+    danmaku.innerText = text;
+    // 随机位置+颜色
+    const top = Math.random() * 80 + '%';
+    const color = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
+    danmaku.style.top = top;
+    danmaku.style.color = color;
+    danmakuContainer.appendChild(danmaku);
+    // 动画结束移除
+    setTimeout(() => danmaku.remove(), 8000);
+  }
+
+  // 页面加载自动播放历史弹幕
+  function loadHistoryDanmaku() {
+    danmakuList.forEach(text => createDanmaku(text));
+  }
+
+  // ============== 初始化 ==============
+  function updateCount() {
+    imgCount.innerText = imageList.length;
+  }
+  window.onload = () => {
+    renderPreview();
+    showImage();
+    loadHistoryDanmaku();
+  };
+</script>
+</body>
+</html>
